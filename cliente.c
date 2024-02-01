@@ -1,43 +1,71 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
-#define PORT 8080
-#define MAX_NAME_LENGTH 50
+#define SERVER_IP "127.0.0.1"
+#define PORT 12345
+#define MAX_BUFFER_SIZE 1024
+
+void error(const char *msg) {
+    perror(msg);
+    exit(EXIT_FAILURE);
+}
 
 int main() {
-    int sock = 0;
-    struct sockaddr_in serv_addr;
-    char name[MAX_NAME_LENGTH];
+    int client_socket;
+    struct sockaddr_in server_addr;
 
-    // Criar socket do cliente
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("\nErro na criação do socket\n");
-        return -1;
+    // Criação do socket do cliente
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket == -1)
+        error("Erro ao criar o socket do cliente");
+
+    // Configuração do endereço do servidor
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr);
+
+    // Conexão ao servidor
+    if (connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+        error("Erro ao conectar ao servidor");
+
+    printf("Conectado ao servidor\n");
+
+    // Receber o nome do jogador do servidor
+    char player_name[MAX_BUFFER_SIZE];
+    if (recv(client_socket, player_name, sizeof(player_name), 0) == -1)
+        error("Erro ao receber dados do servidor");
+
+    printf("Bem-vindo, %s!\n", player_name);
+
+    // Loop principal para a lógica do jogo
+    while (1) {
+        // Exemplo: Receber informações do servidor sobre o estado atual do jogo
+        char game_info[MAX_BUFFER_SIZE];
+        if (recv(client_socket, game_info, sizeof(game_info), 0) == -1)
+            error("Erro ao receber dados do servidor");
+
+        printf("%s\n", game_info);
+
+        // Verificar se é a vez do jogador fazer uma jogada
+        int is_player_turn;
+        if (recv(client_socket, &is_player_turn, sizeof(is_player_turn), 0) == -1)
+            error("Erro ao receber dados do servidor");
+
+        if (is_player_turn) {
+            // Exemplo: Enviar opções de jogada para o servidor (cartas disponíveis, etc.)
+            // Aguardar a resposta do jogador
+            int player_choice;
+            printf("Sua vez! Escolha uma opção: ");
+            scanf("%d", &player_choice);
+            send(client_socket, &player_choice, sizeof(player_choice), 0);
+        }
     }
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-
-    // Converter o endereço IPv4 e verificar se é válido
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-        printf("\nEndereço inválido\n");
-        return -1;
-    }
-
-    // Conectar ao servidor
-    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        printf("\nErro na conexão\n");
-        return -1;
-    }
-
-    // Digitar o nome e enviar para o servidor
-    printf("Digite seu nome: ");
-    fgets(name, MAX_NAME_LENGTH, stdin);
-    send(sock, name, strlen(name), 0);
-    printf("Nome enviado para o servidor.\n");
+    // Fechar o socket do cliente
+    close(client_socket);
 
     return 0;
 }
